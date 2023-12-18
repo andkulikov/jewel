@@ -34,6 +34,36 @@ import org.jetbrains.jewel.foundation.lazy.tree.DefaultSelectableLazyColumnKeyAc
 import org.jetbrains.jewel.foundation.lazy.tree.KeyActions
 import org.jetbrains.jewel.foundation.lazy.tree.PointerEventActions
 
+public fun Modifier.onPreviewKeyEvent(
+    keys: List<SelectableLazyListKey>,
+    keyActions: KeyActions = DefaultSelectableLazyColumnKeyActions,
+    selectionMode: SelectionMode = SelectionMode.Multiple,
+    selectionManager: SelectionManager,
+    onActionHandledForIndex: (Int) -> Unit,
+): Modifier = onPreviewKeyEvent { event ->
+    if (selectionManager.lastActiveItemIndex != null) {
+        val actionHandled =
+            keyActions.handleOnKeyEvent(event, keys, selectionManager, selectionMode)
+                .invoke(event)
+        if (actionHandled) {
+            onActionHandledForIndex(selectionManager.lastActiveItemIndex!!)
+        }
+    }
+    true
+}
+
+public class ItemWrappingState(
+    internal val interactionSource: MutableInteractionSource = MutableInteractionSource()
+) {
+    internal var isFocused: Boolean by mutableStateOf(false)
+    internal val focusRequester: FocusRequester = FocusRequester()
+}
+
+public fun Modifier.wrappingContainer(state: ItemWrappingState): Modifier =
+    onFocusChanged { state.isFocused = it.hasFocus }
+        .focusRequester(state.focusRequester)
+        .focusable(interactionSource = state.interactionSource)
+
 /**
  * A composable that displays a scrollable and selectable list of items in
  * a column arrangement.
@@ -45,6 +75,8 @@ public fun SelectableLazyColumn(
     state: SelectableLazyListState = rememberSelectableLazyListState(),
     contentPadding: PaddingValues = PaddingValues(0.dp),
     reverseLayout: Boolean = false,
+    // we are usually not having such callbacks in the api. as you done in the implementation, users
+    // can always do the same - collect a snapshotFlow if they need those values.
     onSelectedIndexesChanged: (List<Int>) -> Unit = {},
     verticalArrangement: Arrangement.Vertical = if (!reverseLayout) Arrangement.Top else Arrangement.Bottom,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
@@ -54,35 +86,30 @@ public fun SelectableLazyColumn(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: SelectableLazyListScope.() -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val container = SelectableLazyListScopeContainer().apply(content)
 
     val keys = remember(container) { container.getKeys() }
-    var isFocused by remember { mutableStateOf(false) }
+    val wrappingState = remember(interactionSource) { ItemWrappingState(interactionSource) }
 
     val latestOnSelectedIndexesChanged = rememberUpdatedState(onSelectedIndexesChanged)
     LaunchedEffect(state, container) {
-        snapshotFlow { state.selectedKeys }.collect { selectedKeys ->
+        snapshotFlow { state.selectionManager.selectedKeys }.collect { selectedKeys ->
             val indices = selectedKeys.mapNotNull { key -> container.getKeyIndex(key) }
             latestOnSelectedIndexesChanged.value.invoke(indices)
         }
     }
-    val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
     LazyColumn(
-        modifier = modifier.onFocusChanged { isFocused = it.hasFocus }
-            .focusRequester(focusRequester)
-            .focusable(interactionSource = interactionSource)
-            .onPreviewKeyEvent { event ->
-                if (state.lastActiveItemIndex != null) {
-                    val actionHandled =
-                        keyActions.handleOnKeyEvent(event, keys, state, selectionMode)
-                            .invoke(event)
-                    if (actionHandled) {
-                        scope.launch { state.lastActiveItemIndex?.let { state.scrollToItem(it) } }
-                    }
+        modifier = modifier.wrappingContainer(wrappingState)
+            .onPreviewKeyEvent(
+                keys = keys,
+                keyActions = keyActions,
+                selectionMode = selectionMode,
+                selectionManager = state.selectionManager,
+                onActionHandledForIndex = {
+                    scope.launch { state.lazyListState.scrollToItem(it) }
                 }
-                true
-            },
+            ),
         state = state.lazyListState,
         contentPadding = contentPadding,
         reverseLayout = reverseLayout,
@@ -94,9 +121,8 @@ public fun SelectableLazyColumn(
             appendEntry(
                 entry,
                 state,
-                isFocused,
+                wrappingState,
                 keys,
-                focusRequester,
                 keyActions,
                 pointerEventActions,
                 selectionMode,
@@ -106,12 +132,42 @@ public fun SelectableLazyColumn(
     }
 }
 
+@Composable
+public fun WrapSelectableItem(
+    key: Any,
+    selectionManager: SelectionManager,
+    wrappingState: ItemWrappingState,
+    keys: List<SelectableLazyListKey>,
+    pointerEventActions: PointerEventActions,
+    keyActions: KeyActions = DefaultSelectableLazyColumnKeyActions,
+    selectionMode: SelectionMode = SelectionMode.Multiple,
+    content: @Composable SelectableLazyItemScope.() -> Unit,
+) {
+    val itemScope =
+        SelectableLazyItemScope(
+            isSelected = key in selectionManager.selectedKeys,
+            isActive = wrappingState.isFocused,
+        )
+    Box(
+        modifier = Modifier.selectable(
+            requester = wrappingState.focusRequester,
+            keybindings = keyActions.keybindings,
+            actionHandler = pointerEventActions,
+            selectionMode = selectionMode,
+            selectionManager = selectionManager,
+            allKeys = keys,
+            itemKey = key,
+        ),
+    ) {
+        content.invoke(itemScope)
+    }
+}
+
 private fun LazyListScope.appendEntry(
     entry: Entry,
     state: SelectableLazyListState,
-    isFocused: Boolean,
+    wrappingState: ItemWrappingState,
     keys: List<SelectableLazyListKey>,
-    focusRequester: FocusRequester,
     keyActions: KeyActions,
     pointerEventActions: PointerEventActions,
     selectionMode: SelectionMode,
@@ -119,26 +175,23 @@ private fun LazyListScope.appendEntry(
 ) {
     when (entry) {
         is Entry.Item -> item(entry.key, entry.contentType) {
-            val itemScope =
-                SelectableLazyItemScope(
-                    isSelected = entry.key in state.selectedKeys,
-                    isActive = isFocused,
-                )
             if (isKeySelectable(entry.key)) {
-                Box(
-                    modifier = Modifier.selectable(
-                        requester = focusRequester,
-                        keybindings = keyActions.keybindings,
-                        actionHandler = pointerEventActions,
-                        selectionMode = selectionMode,
-                        selectableState = state,
-                        allKeys = keys,
-                        itemKey = entry.key,
-                    ),
-                ) {
-                    entry.content.invoke(itemScope)
-                }
+                WrapSelectableItem(
+                    key = entry.key,
+                    selectionManager = state.selectionManager,
+                    wrappingState = wrappingState,
+                    keys = keys,
+                    selectionMode = selectionMode,
+                    keyActions = keyActions,
+                    pointerEventActions = pointerEventActions,
+                    content = entry.content
+                )
             } else {
+                val itemScope =
+                    SelectableLazyItemScope(
+                        isSelected = entry.key in state.selectionManager.selectedKeys,
+                        isActive = wrappingState.isFocused,
+                    )
                 entry.content.invoke(itemScope)
             }
         }
@@ -149,45 +202,40 @@ private fun LazyListScope.appendEntry(
             contentType = { entry.contentType(it) },
         ) { index ->
             val key = remember(entry, index) { entry.key(index) }
-            val itemScope = SelectableLazyItemScope(key in state.selectedKeys, isFocused)
             if (isKeySelectable(key)) {
-                Box(
-                    modifier = Modifier.selectable(
-                        requester = focusRequester,
-                        keybindings = keyActions.keybindings,
-                        actionHandler = pointerEventActions,
-                        selectionMode = selectionMode,
-                        selectableState = state,
-                        allKeys = keys,
-                        itemKey = entry.key(index),
-                    ),
-                ) {
-                    entry.itemContent.invoke(itemScope, index)
-                }
+                WrapSelectableItem(
+                    key = entry.key(index),
+                    selectionManager = state.selectionManager,
+                    wrappingState = wrappingState,
+                    keys = keys,
+                    selectionMode = selectionMode,
+                    keyActions = keyActions,
+                    pointerEventActions = pointerEventActions,
+                    content = {
+                        entry.itemContent.invoke(this, index)
+                    }
+                )
             } else {
+                val itemScope = SelectableLazyItemScope(key in state.selectionManager.selectedKeys, wrappingState.isFocused)
                 entry.itemContent.invoke(itemScope, index)
             }
         }
 
         is Entry.StickyHeader -> stickyHeader(entry.key, entry.contentType) {
-            val itemScope = SelectableLazyItemScope(entry.key in state.selectedKeys, isFocused)
-
             if (isKeySelectable(entry.key)) {
-                Box(
-                    modifier = Modifier.selectable(
-                        keybindings = keyActions.keybindings,
-                        actionHandler = pointerEventActions,
-                        selectionMode = selectionMode,
-                        selectableState = state,
-                        allKeys = keys,
-                        itemKey = entry.key,
-                    ),
-                ) {
-                    entry.content.invoke(itemScope)
-                }
+                WrapSelectableItem(
+                    key = entry.key,
+                    selectionManager = state.selectionManager,
+                    wrappingState = wrappingState,
+                    keys = keys,
+                    selectionMode = selectionMode,
+                    keyActions = keyActions,
+                    pointerEventActions = pointerEventActions,
+                    content = entry.content
+                )
             } else {
-                SelectableLazyItemScope(entry.key in state.selectedKeys, isFocused)
-                    .apply { entry.content.invoke(itemScope) }
+                SelectableLazyItemScope(entry.key in state.selectionManager.selectedKeys, wrappingState.isFocused)
+                    .apply { entry.content.invoke(this) }
             }
         }
     }
@@ -198,7 +246,7 @@ private fun Modifier.selectable(
     keybindings: SelectableColumnKeybindings,
     actionHandler: PointerEventActions,
     selectionMode: SelectionMode,
-    selectableState: SelectableLazyListState,
+    selectionManager: SelectionManager,
     allKeys: List<SelectableLazyListKey>,
     itemKey: Any,
 ) =
@@ -212,7 +260,7 @@ private fun Modifier.selectable(
                         actionHandler.handlePointerEventPress(
                             pointerEvent = event,
                             keyBindings = keybindings,
-                            selectableLazyListState = selectableState,
+                            selectionManager = selectionManager,
                             selectionMode = selectionMode,
                             allKeys = allKeys,
                             key = itemKey,

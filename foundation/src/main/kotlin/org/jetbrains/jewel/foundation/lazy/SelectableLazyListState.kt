@@ -19,9 +19,14 @@ public val LazyListState.visibleItemsRange: IntRange
 public val SelectableLazyListState.visibleItemsRange: IntRange
     get() = firstVisibleItemIndex..firstVisibleItemIndex + layoutInfo.visibleItemsInfo.size
 
-public interface SelectableScope {
+public class SelectionManager(
+    public val visibleSize: () -> Int
+) {
+    public var selectedKeys: List<Any> by mutableStateOf(emptyList<Any>())
 
-    public var selectedKeys: List<Any>
+    public var lastActiveItemIndex: Int? = null
+
+    internal var lastKeyEventUsedMouse: Boolean = false
 }
 
 /**
@@ -32,13 +37,11 @@ public interface SelectableScope {
  */
 public class SelectableLazyListState(
     public val lazyListState: LazyListState,
-) : ScrollableState by lazyListState, SelectableScope {
+) : ScrollableState by lazyListState {
 
-    internal var lastKeyEventUsedMouse: Boolean = false
-
-    override var selectedKeys: List<Any> by mutableStateOf(emptyList<Any>())
-
-    public var lastActiveItemIndex: Int? = null
+    public val selectionManager: SelectionManager = SelectionManager(
+        visibleSize = { lazyListState.layoutInfo.visibleItemsInfo.size }
+    )
 
     /**
      * @param itemIndex The index of the item to focus on.
@@ -66,7 +69,7 @@ public class SelectableLazyListState(
                 )
             }
         }
-        lastActiveItemIndex = itemIndex
+        selectionManager.lastActiveItemIndex = itemIndex
     }
 
     public val layoutInfo: LazyListLayoutInfo
@@ -147,7 +150,7 @@ public sealed class SelectableLazyListKey {
     override fun hashCode(): Int = key.hashCode()
 }
 
-public interface SelectableLazyItemScope : LazyItemScope {
+public interface SelectableLazyItemScope {
 
     public val isSelected: Boolean
     public val isActive: Boolean

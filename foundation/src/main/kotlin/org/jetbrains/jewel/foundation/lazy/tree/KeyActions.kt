@@ -15,7 +15,7 @@ import org.jetbrains.jewel.foundation.lazy.DefaultSelectableOnKeyEvent
 import org.jetbrains.jewel.foundation.lazy.SelectableColumnKeybindings
 import org.jetbrains.jewel.foundation.lazy.SelectableColumnOnKeyEvent
 import org.jetbrains.jewel.foundation.lazy.SelectableLazyListKey
-import org.jetbrains.jewel.foundation.lazy.SelectableLazyListState
+import org.jetbrains.jewel.foundation.lazy.SelectionManager
 import org.jetbrains.jewel.foundation.lazy.SelectionMode
 import org.jetbrains.jewel.foundation.utils.Log
 import org.jetbrains.skiko.hostOs
@@ -28,7 +28,7 @@ public interface KeyActions {
     public fun handleOnKeyEvent(
         event: KeyEvent,
         keys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
         selectionMode: SelectionMode,
     ): KeyEvent.() -> Boolean
 }
@@ -38,7 +38,7 @@ public interface PointerEventActions {
     public fun handlePointerEventPress(
         pointerEvent: PointerEvent,
         keyBindings: SelectableColumnKeybindings,
-        selectableLazyListState: SelectableLazyListState,
+        selectionManager: SelectionManager,
         selectionMode: SelectionMode,
         allKeys: List<SelectableLazyListKey>,
         key: Any,
@@ -47,13 +47,13 @@ public interface PointerEventActions {
     public fun toggleKeySelection(
         key: Any,
         allKeys: List<SelectableLazyListKey>,
-        selectableLazyListState: SelectableLazyListState,
+        selectionManager: SelectionManager,
     )
 
     public fun onExtendSelectionToKey(
         key: Any,
         allKeys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
         selectionMode: SelectionMode,
     )
 }
@@ -63,7 +63,7 @@ public open class DefaultSelectableLazyColumnEventAction : PointerEventActions {
     override fun handlePointerEventPress(
         pointerEvent: PointerEvent,
         keyBindings: SelectableColumnKeybindings,
-        selectableLazyListState: SelectableLazyListState,
+        selectionManager: SelectionManager,
         selectionMode: SelectionMode,
         allKeys: List<SelectableLazyListKey>,
         key: Any,
@@ -78,18 +78,18 @@ public open class DefaultSelectableLazyColumnEventAction : PointerEventActions {
 
                 pointerEvent.keyboardModifiers.isContiguousSelectionKeyPressed -> {
                     Log.i("shift pressed on click")
-                    onExtendSelectionToKey(key, allKeys, selectableLazyListState, selectionMode)
+                    onExtendSelectionToKey(key, allKeys, selectionManager, selectionMode)
                 }
 
                 pointerEvent.keyboardModifiers.isMultiSelectionKeyPressed -> {
                     Log.i("ctrl pressed on click")
-                    toggleKeySelection(key, allKeys, selectableLazyListState)
+                    toggleKeySelection(key, allKeys, selectionManager)
                 }
 
                 else -> {
                     Log.i("single click")
-                    selectableLazyListState.selectedKeys = listOf(key)
-                    selectableLazyListState.lastActiveItemIndex = allKeys.indexOfFirst { it.key == key }
+                    selectionManager.selectedKeys = listOf(key)
+                    selectionManager.lastActiveItemIndex = allKeys.indexOfFirst { it.key == key }
                 }
             }
         }
@@ -98,22 +98,22 @@ public open class DefaultSelectableLazyColumnEventAction : PointerEventActions {
     override fun toggleKeySelection(
         key: Any,
         allKeys: List<SelectableLazyListKey>,
-        selectableLazyListState: SelectableLazyListState,
+        selectionManager: SelectionManager,
     ) {
-        if (selectableLazyListState.selectedKeys.contains(key)) {
-            selectableLazyListState.selectedKeys =
-                selectableLazyListState.selectedKeys.toMutableList().also { it.remove(key) }
+        if (selectionManager.selectedKeys.contains(key)) {
+            selectionManager.selectedKeys =
+                selectionManager.selectedKeys.toMutableList().also { it.remove(key) }
         } else {
-            selectableLazyListState.selectedKeys =
-                selectableLazyListState.selectedKeys.toMutableList().also { it.add(key) }
+            selectionManager.selectedKeys =
+                selectionManager.selectedKeys.toMutableList().also { it.add(key) }
         }
-        selectableLazyListState.lastActiveItemIndex = allKeys.indexOfFirst { it == key }
+        selectionManager.lastActiveItemIndex = allKeys.indexOfFirst { it == key }
     }
 
     override fun onExtendSelectionToKey(
         key: Any,
         allKeys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
         selectionMode: SelectionMode,
     ) {
         if (selectionMode == SelectionMode.None) return
@@ -152,7 +152,7 @@ public class DefaultTreeViewPointerEventAction(
     override fun handlePointerEventPress(
         pointerEvent: PointerEvent,
         keyBindings: SelectableColumnKeybindings,
-        selectableLazyListState: SelectableLazyListState,
+        selectionManager: SelectionManager,
         selectionMode: SelectionMode,
         allKeys: List<SelectableLazyListKey>,
         key: Any,
@@ -165,17 +165,17 @@ public class DefaultTreeViewPointerEventAction(
                 }
 
                 pointerEvent.keyboardModifiers.isContiguousSelectionKeyPressed -> {
-                    super.onExtendSelectionToKey(key, allKeys, selectableLazyListState, selectionMode)
+                    super.onExtendSelectionToKey(key, allKeys, selectionManager, selectionMode)
                 }
 
                 pointerEvent.keyboardModifiers.isMultiSelectionKeyPressed -> {
                     Log.t("multi selection pressed")
-                    selectableLazyListState.lastKeyEventUsedMouse = false
-                    super.toggleKeySelection(key, allKeys, selectableLazyListState)
+                    selectionManager.lastKeyEventUsedMouse = false
+                    super.toggleKeySelection(key, allKeys, selectionManager)
                 }
 
                 else -> {
-                    selectableLazyListState.selectedKeys = listOf(key)
+                    selectionManager.selectedKeys = listOf(key)
                 }
             }
         }
@@ -230,7 +230,7 @@ public class DefaultTreeViewKeyActions(
     override fun handleOnKeyEvent(
         event: KeyEvent,
         keys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
         selectionMode: SelectionMode,
     ): KeyEvent.() -> Boolean = lambda@{
         if (type == KeyEventType.KeyUp) return@lambda false
@@ -268,7 +268,7 @@ public open class DefaultSelectableLazyColumnKeyActions(
     override fun handleOnKeyEvent(
         event: KeyEvent,
         keys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
         selectionMode: SelectionMode,
     ): KeyEvent.() -> Boolean = lambda@{
         if (type == KeyEventType.KeyUp || selectionMode == SelectionMode.None) return@lambda false
@@ -278,7 +278,7 @@ public open class DefaultSelectableLazyColumnKeyActions(
     context(SelectableColumnKeybindings, SelectableColumnOnKeyEvent)
     private fun KeyEvent.execute(
         keys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
         selectionMode: SelectionMode,
     ): Boolean {
         val singleSelectionEventHandled = handleSingleSelectionEvents(keys, state)
@@ -297,7 +297,7 @@ public open class DefaultSelectableLazyColumnKeyActions(
     context(SelectableColumnKeybindings, SelectableColumnOnKeyEvent)
     private fun KeyEvent.handleSingleSelectionEvents(
         keys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
     ): Boolean {
         when {
             isSelectNextItem -> onSelectNextItem(keys, state)
@@ -313,7 +313,7 @@ public open class DefaultSelectableLazyColumnKeyActions(
     context(SelectableColumnKeybindings, SelectableColumnOnKeyEvent)
     private fun KeyEvent.handleMultipleSelectionEvents(
         keys: List<SelectableLazyListKey>,
-        state: SelectableLazyListState,
+        state: SelectionManager,
     ): Boolean {
         when {
             isExtendSelectionToFirstItem -> onExtendSelectionToFirst(keys, state)

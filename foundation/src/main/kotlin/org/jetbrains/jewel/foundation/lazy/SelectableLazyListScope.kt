@@ -194,13 +194,12 @@ public fun <T : Any> SelectableLazyListScope.itemsIndexed(
 }
 
 @Composable
-public fun LazyItemScope.SelectableLazyItemScope(
+public fun SelectableLazyItemScope(
     isSelected: Boolean = false,
     isActive: Boolean = false,
-): SelectableLazyItemScope = SelectableLazyItemScopeDelegate(this, isSelected, isActive)
+): SelectableLazyItemScope = SelectableLazyItemScopeDelegate(isSelected, isActive)
 
 internal class SelectableLazyItemScopeDelegate(
-    private val delegate: LazyItemScope,
     override val isSelected: Boolean,
     override val isActive: Boolean,
-) : SelectableLazyItemScope, LazyItemScope by delegate
+) : SelectableLazyItemScope

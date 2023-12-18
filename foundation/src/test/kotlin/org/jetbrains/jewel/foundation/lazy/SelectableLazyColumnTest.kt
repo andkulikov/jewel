@@ -89,8 +89,8 @@ internal class SelectableLazyColumnTest {
         composeRule.onNodeWithTag("Item 5").performClick()
 
         // check that 5th element is selected
-        assertEquals(1, state.selectedKeys.size)
-        assertEquals(items[5], state.selectedKeys.single())
+        assertEquals(1, state.selectionManager.selectedKeys.size)
+        assertEquals(items[5], state.selectionManager.selectedKeys.single())
 
         // press arrow up and check that selected key is changed
         repeat(20) { step ->
@@ -100,14 +100,14 @@ internal class SelectableLazyColumnTest {
 
             // check that previous element is selected
             // when started from 5th element
-            assertTrue(state.selectedKeys.size == 1)
+            assertTrue(state.selectionManager.selectedKeys.size == 1)
             val expectedSelectedIndex = (5 - step - 1).takeIf { it >= 0 } ?: 0
-            assertEquals(items[expectedSelectedIndex], state.selectedKeys.single())
+            assertEquals(items[expectedSelectedIndex], state.selectionManager.selectedKeys.single())
         }
 
         // since amount of arrow up is bigger than amount of items -> first element should be selected
-        assertTrue(state.selectedKeys.size == 1)
-        assertEquals(items[0], state.selectedKeys.single())
+        assertTrue(state.selectionManager.selectedKeys.size == 1)
+        assertEquals(items[0], state.selectionManager.selectedKeys.single())
 
         // press arrow down and check that selected key is changed
         repeat(40) { step ->
@@ -116,14 +116,14 @@ internal class SelectableLazyColumnTest {
             }
 
             // check that next element is selected
-            assertTrue(state.selectedKeys.size == 1)
+            assertTrue(state.selectionManager.selectedKeys.size == 1)
             val expectedSelectedIndex = (step + 1).takeIf { it in items.indices } ?: items.lastIndex
-            assertEquals(items[expectedSelectedIndex], state.selectedKeys.single())
+            assertEquals(items[expectedSelectedIndex], state.selectionManager.selectedKeys.single())
         }
 
         // since amount of arrow down is bigger than amount of items -> last element should be selected
-        assertTrue(state.selectedKeys.size == 1)
-        assertEquals(items.last(), state.selectedKeys.single())
+        assertTrue(state.selectionManager.selectedKeys.size == 1)
+        assertEquals(items.last(), state.selectionManager.selectedKeys.single())
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -152,8 +152,8 @@ internal class SelectableLazyColumnTest {
         composeRule.onNodeWithTag("Item 5").performClick()
 
         // check that 5th element is selected
-        assertEquals(1, state.selectedKeys.size)
-        assertEquals(items[5], state.selectedKeys.single())
+        assertEquals(1, state.selectionManager.selectedKeys.size)
+        assertEquals(items[5], state.selectionManager.selectedKeys.single())
 
         // press arrow up with pressed Shift and check that selected keys are changed
         repeat(20) { step ->
@@ -167,8 +167,8 @@ internal class SelectableLazyColumnTest {
             // when started from 5th element
             val expectedFirstSelectedIndex = (5 - step - 1).takeIf { it >= 0 } ?: 0
             val elements = items.subList(expectedFirstSelectedIndex, 6)
-            assertEquals(elements.size, state.selectedKeys.size)
-            assertEquals(elements.toSet(), state.selectedKeys.toSet())
+            assertEquals(elements.size, state.selectionManager.selectedKeys.size)
+            assertEquals(elements.toSet(), state.selectionManager.selectedKeys.toSet())
         }
 
         // select first item by click
@@ -176,8 +176,8 @@ internal class SelectableLazyColumnTest {
         composeRule.onNodeWithTag("Item 0").performClick()
 
         // check that first element is selected
-        assertEquals(1, state.selectedKeys.size)
-        assertEquals(items[0], state.selectedKeys.single())
+        assertEquals(1, state.selectionManager.selectedKeys.size)
+        assertEquals(items[0], state.selectionManager.selectedKeys.single())
 
         // press arrow down with pressed Shift and check that selected keys are changed
         repeat(20) { step ->
@@ -190,13 +190,13 @@ internal class SelectableLazyColumnTest {
             // check that next element is added to selection
             val expectedFirstSelectedIndex = (step + 1).takeIf { it in items.indices } ?: items.lastIndex
             val elements = items.subList(0, expectedFirstSelectedIndex + 1)
-            assertEquals(elements.size, state.selectedKeys.size)
-            assertEquals(elements.toSet(), state.selectedKeys.toSet())
+            assertEquals(elements.size, state.selectionManager.selectedKeys.size)
+            assertEquals(elements.toSet(), state.selectionManager.selectedKeys.toSet())
         }
 
         // all elements should be selected in the end
-        assertEquals(items.size, state.selectedKeys.size)
-        assertEquals(items.toSet(), state.selectedKeys.toSet())
+        assertEquals(items.size, state.selectionManager.selectedKeys.size)
+        assertEquals(items.toSet(), state.selectionManager.selectedKeys.toSet())
     }
 
     @OptIn(ExperimentalTestApi::class)
@@ -225,8 +225,8 @@ internal class SelectableLazyColumnTest {
         composeRule.onNodeWithTag("Item 5").performClick()
 
         // check that 5th element is selected
-        assertEquals(1, state.selectedKeys.size)
-        assertEquals(items[5], state.selectedKeys.single())
+        assertEquals(1, state.selectionManager.selectedKeys.size)
+        assertEquals(items[5], state.selectionManager.selectedKeys.single())
 
         // perform home with shift, so all items until 5th should be selected
         composeRule.onNodeWithTag("list").performKeyInput {
@@ -235,16 +235,16 @@ internal class SelectableLazyColumnTest {
             }
         }
         val expectedElementsAfterPageUp = items.subList(0, 6)
-        assertEquals(expectedElementsAfterPageUp.size, state.selectedKeys.size)
-        assertEquals(expectedElementsAfterPageUp.toSet(), state.selectedKeys.toSet())
+        assertEquals(expectedElementsAfterPageUp.size, state.selectionManager.selectedKeys.size)
+        assertEquals(expectedElementsAfterPageUp.toSet(), state.selectionManager.selectedKeys.toSet())
 
         // select item 5 by click
         composeRule.onNodeWithTag("Item 5").assertExists()
         composeRule.onNodeWithTag("Item 5").performClick()
 
         // check that 5th element is selected
-        assertEquals(1, state.selectedKeys.size)
-        assertEquals(items[5], state.selectedKeys.single())
+        assertEquals(1, state.selectionManager.selectedKeys.size)
+        assertEquals(items[5], state.selectionManager.selectedKeys.single())
 
         // perform end with shift, so all items after 5th should be selected
         composeRule.onNodeWithTag("list").performKeyInput {
@@ -253,8 +253,8 @@ internal class SelectableLazyColumnTest {
             }
         }
         val expectedElementsAfterPageDown = items.subList(5, items.lastIndex + 1)
-        assertEquals(expectedElementsAfterPageDown.size, state.selectedKeys.size)
-        assertEquals(expectedElementsAfterPageDown.toSet(), state.selectedKeys.toSet())
+        assertEquals(expectedElementsAfterPageDown.size, state.selectionManager.selectedKeys.size)
+        assertEquals(expectedElementsAfterPageDown.toSet(), state.selectionManager.selectedKeys.toSet())
     }
 
     @Test
@@ -285,20 +285,20 @@ internal class SelectableLazyColumnTest {
         composeRule.onNodeWithTag("Item 5").performClick()
 
         // check that 5th element is selected
-        assertEquals(1, state.selectedKeys.size)
-        assertEquals(currentItems.value[5], state.selectedKeys.single())
+        assertEquals(1, state.selectionManager.selectedKeys.size)
+        assertEquals(currentItems.value[5], state.selectionManager.selectedKeys.single())
 
         // change items from 0..50 to 70..80, so "Item 5" doesn't exist
         currentItems.value = items2
         composeRule.awaitIdle()
         // TODO: should the selectedKeys be cleared when items are changed
         //  https://github.com/JetBrains/jewel/issues/242
-        // assertEquals(0, state.selectedKeys.size)
+        // assertEquals(0, state.selectionManager.selectedKeys.size)
 
         composeRule.onNodeWithTag("Item 75").assertExists()
         composeRule.onNodeWithTag("Item 75").performClick()
 
-        assertEquals(1, state.selectedKeys.size)
-        assertEquals(currentItems.value[5], state.selectedKeys.single())
+        assertEquals(1, state.selectionManager.selectedKeys.size)
+        assertEquals(currentItems.value[5], state.selectionManager.selectedKeys.single())
     }
 }
